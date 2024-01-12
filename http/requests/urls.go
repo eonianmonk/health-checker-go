@@ -6,7 +6,7 @@ import (
 )
 
 type UrlsRequest struct {
-	Urls []string
+	Urls []string 
 }
 
 func (ur *UrlsRequest) VerifyURLs() error {
