@@ -1,8 +1,10 @@
 package http
 
 import (
+	"fmt"
 	healthcheckergo "healthchecker"
 	"healthchecker/config"
+	"healthchecker/http/middleware"
 	"os"
 
 	"github.com/gofiber/fiber/v2"
@@ -22,8 +24,8 @@ func startFiber(cfg config.Config) error {
 	
 	app := fiber.New()
 	pinger := healthcheckergo.NewPinger(cfg.StopOnFail, cfg.Timeout, logger)
-	app.Use(setLogger(logger),setPinger(pinger))
+	app.Use(middleware.SetLogger(logger),middleware.SetPinger(pinger))
 	setupRoutes(app)
-
-	return app.Listen(cfg.Port)
+	
+	return app.Listen(fmt.Sprintf("localhost%s",cfg.Port))
 }
