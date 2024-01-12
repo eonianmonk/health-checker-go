@@ -1,10 +1,9 @@
 package healthcheckergo
 
 import (
-	"context"
 	"fmt"
 	"net/http"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gofiber/fiber/v2/log"
@@ -30,6 +29,11 @@ type Pinger struct {
 	log *logrus.Logger
 }
 
+type pingTask struct {
+	active atomic.Bool
+	resc chan URLStatus
+}
+
 func NewPinger(stopOnError bool, timeout int, log *logrus.Logger) *Pinger {
 	return &Pinger {
 		cli: http.Client{Timeout: time.Duration(timeout)*time.Second},
@@ -40,49 +44,52 @@ func NewPinger(stopOnError bool, timeout int, log *logrus.Logger) *Pinger {
 
 func (p *Pinger) PingEm(urls []string) ([]URLStatus, error) {
 	
-	var mx sync.Mutex
-
+	//var mx sync.Mutex
 	result := make([]URLStatus,0,len(urls))
-	resc := make(chan URLStatus)
-	defer close(resc)
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+	task := pingTask{
+		active: atomic.Bool{},
+		resc: make(chan URLStatus),
+	}
+	task.active.Store(true)
 	
 	for _, u := range urls {
-		go p.pingSingle(u, ctx, resc)
+		go p.pingSingle(u, &task)
 	}
 
-	for {
+	var err error
+	for i := 0; i < len(urls); i++ {
 		select {
-		case res := <- resc:
+		case res := <- task.resc:
 			if (res.Status == Inactive || res.Status == Error) && p.stopOnError {
-				cancel()
+				task.active.Store(false)
+				close(task.resc)
 				return nil, fmt.Errorf("failed to ping: %s",res.URL)
 			}
-			mx.Lock()
 			result = append(result, res)
-			mx.Unlock()
-			if len(result) == len(urls){
-				return result, nil
-			}
 		}
 	}
+	return result, err
+
 
 }
 
-func (p *Pinger) pingSingle(url string, ctx context.Context, resc chan URLStatus) {
+func (p *Pinger) pingSingle(url string, pt *pingTask) {
 	res := URLStatus{URL: url}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Errorf("failed to fetch %s. Cause: %s", url, err.Error())
 		res.Status = Error
-		resc <- res
+		if pt.active.Load() {
+			pt.resc <- res
+		}
 		return
 	}
 	resp,err := p.cli.Do(req)
 	if err != nil {
 		res.Status = Inactive
-		resc <- res
+		if pt.active.Load() {
+			pt.resc <- res
+		}
 		return 
 	}
 	if resp.StatusCode != http.StatusOK || err != nil {
@@ -90,7 +97,10 @@ func (p *Pinger) pingSingle(url string, ctx context.Context, resc chan URLStatus
 	} else {
 		res.Status = Active
 	}
-	resc <- res
+	
+	if pt.active.Load() {
+		pt.resc <- res
+	}
 }
 
 
