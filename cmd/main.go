@@ -16,7 +16,7 @@ func Run(args []string) {
 			panic(fmt.Sprintf("%s -> app panicked", rvr))
 		}
 	}()
-	command, err := app.Parse(args[1:])
+	command, err := app.Parse(args)
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "Failed to parse cli command"))
 	}
