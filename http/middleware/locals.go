@@ -1,4 +1,4 @@
-package http
+package middleware
 
 import (
 	healthcheckergo "healthchecker"
@@ -8,14 +8,14 @@ import (
 )
 
 
-func setLogger(logger *logrus.Logger)  func(*fiber.Ctx) error {
+func SetLogger(logger *logrus.Logger)  func(*fiber.Ctx) error {
 	return func(c *fiber.Ctx) error {
 		c.Locals("logger", logger)
 		return c.Next()
 	}
 }
 
-func setPinger(pinger *healthcheckergo.Pinger)  func(*fiber.Ctx) error {
+func SetPinger(pinger *healthcheckergo.Pinger)  func(*fiber.Ctx) error {
 	return func(c *fiber.Ctx) error {
 		c.Locals("pinger", pinger)
 		return c.Next()
