@@ -15,7 +15,7 @@ type HealthStatus string
 const (
 	Active HealthStatus = "active"
 	Inactive = "inactive"
-	Error = "error"
+	// Error = "error"
 )
 
 type URLStatus struct {
@@ -60,7 +60,7 @@ func (p *Pinger) PingEm(urls []string) ([]URLStatus, error) {
 	for i := 0; i < len(urls); i++ {
 		select {
 		case res := <- task.resc:
-			if (res.Status == Inactive || res.Status == Error) && p.stopOnError {
+			if res.Status == Inactive && p.stopOnError {
 				task.active.Store(false)
 				close(task.resc)
 				return nil, fmt.Errorf("failed to ping: %s",res.URL)
@@ -78,7 +78,7 @@ func (p *Pinger) pingSingle(url string, pt *pingTask) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Errorf("failed to fetch %s. Cause: %s", url, err.Error())
-		res.Status = Error
+		res.Status = Inactive
 		if pt.active.Load() {
 			pt.resc <- res
 		}
